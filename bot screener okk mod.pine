@@ -1,0 +1,492 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © only_fibonacci
+
+//@version=5
+indicator("Robot moi nhe", overlay = true)
+
+
+// FUNCTIONS
+operatorReturn(i1,selected,i2)=>
+    switch selected
+        ">" => i1 > i2
+        "<" => i1 < i2
+        ">=" => i1 >= i2
+        "<=" => i1 <= i2
+        "=" => i1 == i2
+        "!=" => i1 != i2
+        "CROSS ABOVE" => ta.crossover(i1, i2)
+        "CROSS BELOW" => ta.crossunder(i1,i2)
+
+
+
+maTypeToMa(maType,maPeriod,src)=>
+    switch maType
+        "EMA" => ta.ema(src, maPeriod)
+        "SMA" => ta.sma(src, maPeriod)
+        "RMA" => ta.rma(src, maPeriod)
+        => ta.wma(src, maPeriod)
+
+// Indicators
+// ATR
+atrLen      = input.int(defval = 14,minval = 1, title = "ATR Length", group = "ATR")
+atr         = ta.atr(atrLen) // ATR
+
+// BB
+bbMiddle    = input.source(defval = close, title = "BB Middle", group = "BB")
+bbLen       = input.int(defval = 5, title = "BB Length",minval = 1, group = "BB")
+bbMult      = input.int(defval = 4, title = "BB Mult",minval = 1, group = "BB" )
+[middle, upper, lower] = ta.bb(bbMiddle, bbLen, bbMult) // BB
+bbw         = ta.bbw(middle, bbLen, bbMult) // BB Genişlik
+
+// CCI
+cciSrc      = input.source(defval = close, title = "CCI Source", group = "CCI")
+cciLen      = input.int(defval = 10, title = "CCI Len", minval = 1, group = "CCI")
+cci         = ta.cci(cciSrc,cciLen) // CCI
+
+// MA1
+ma1Type = input.string("EMA", "", options = ["EMA", "SMA", "RMA", "WMA"], group = "MA 1", inline = "2ma1")
+ma1Period = input.int(defval = 20, title = "Period", minval = 1, group = "MA 1", inline = "2ma1")
+ma1Src = input.source(defval = close, title = "Source", group = "MA 1", inline = "2ma1")
+ma1 = maTypeToMa(ma1Type,ma1Period,ma1Src)
+
+// MA2
+ma2Type = input.string("EMA", "", options = ["EMA", "SMA", "RMA", "WMA"], group = "MA 2", inline = "2ma2")
+ma2Period = input.int(defval = 50, title = "Period", minval = 1, group = "MA 2", inline = "2ma2")
+ma2Src = input.source(defval = close, title = "Source", group = "MA 2", inline = "2ma2")
+ma2 = maTypeToMa(ma2Type,ma2Period,ma1Src)
+
+
+// RSI1
+rsi1Src = input.source(defval = close, title = "RSI Source", group = "RSI 1")
+rsi1Len = input.int(defval = 10, title = "RSI Length", minval = 1, group = "RSI 1")
+rsi1 = ta.rsi(rsi1Src,rsi1Len)
+// RSI2
+rsi2Src = input.source(defval = close, title = "RSI Source", group = "RSI 2")
+rsi2Len = input.int(defval = 14, title = "RSI Length", minval = 1, group = "RSI 2")
+rsi2 = ta.rsi(rsi2Src,rsi2Len)
+
+// ADX
+lenAdx = input.int(17, minval=1, title="DI Length", group = "ADX")
+lensigAdx = input.int(14, title="ADX Smoothing", minval=1, maxval=50, group = "ADX")
+[diplus, diminus, adx] = ta.dmi(lenAdx, lensigAdx)
+
+// MFI 1
+mfi1Src = input.source(defval = close, title = "MFI Source", group = "MFI 1")
+mfi1Len = input.int(defval = 14, title = "MFI Length", minval = 1, group = "MFI 1")
+mfi1 = ta.mfi(mfi1Src,mfi1Len)
+
+// MFI 2
+mfi2Src = input.source(defval = close, title = "MFI Source", group = "MFI 2")
+mfi2Len = input.int(defval = 14, title = "MFI Length", minval = 1, group = "MFI 2")
+mfi2 = ta.mfi(mfi2Src,mfi2Len)
+
+// MOM
+momSrc = input.source(defval = close, title = "MOM Source", group = "MOM")
+momLen = input.int(defval = 14, title = "MOM Length", minval = 1, group = "MOM")
+mom = ta.mom(momSrc,momLen)
+
+//Calculation of Half Trend Buy/Sell signals
+amplitude = input(title='Amplitude', defval=2)
+channelDeviation = input(title='Channel Deviation', defval=2)
+showArrows = input(title='Show Arrows', defval=true)
+showChannels = input(title='Show Channels', defval=true)
+
+var int trend = 0
+var int nextTrend = 0
+var float maxLowPrice = nz(low[1], low)
+var float minHighPrice = nz(high[1], high)
+
+var float up = 0.0
+var float down = 0.0
+float atrHigh = 0.0
+float atrLow = 0.0
+float arrowUp = na
+float arrowDown = na
+
+atr2 = ta.atr(100) / 2
+dev = channelDeviation * atr2
+
+highPrice = high[math.abs(ta.highestbars(amplitude))]
+lowPrice = low[math.abs(ta.lowestbars(amplitude))]
+highma = ta.sma(high, amplitude)
+lowma = ta.sma(low, amplitude)
+
+if nextTrend == 1
+    maxLowPrice := math.max(lowPrice, maxLowPrice)
+
+    if highma < maxLowPrice and close < nz(low[1], low)
+        trend := 1
+        nextTrend := 0
+        minHighPrice := highPrice
+        minHighPrice
+else
+    minHighPrice := math.min(highPrice, minHighPrice)
+
+    if lowma > minHighPrice and close > nz(high[1], high)
+        trend := 0
+        nextTrend := 1
+        maxLowPrice := lowPrice
+        maxLowPrice
+
+if trend == 0
+    if not na(trend[1]) and trend[1] != 0
+        up := na(down[1]) ? down : down[1]
+        arrowUp := up - atr2
+        arrowUp
+    else
+        up := na(up[1]) ? maxLowPrice : math.max(maxLowPrice, up[1])
+        up
+    atrHigh := up + dev
+    atrLow := up - dev
+    atrLow
+else
+    if not na(trend[1]) and trend[1] != 1
+        down := na(up[1]) ? up : up[1]
+        arrowDown := down + atr2
+        arrowDown
+    else
+        down := na(down[1]) ? minHighPrice : math.min(minHighPrice, down[1])
+        down
+    atrHigh := down + dev
+    atrLow := down - dev
+    atrLow
+
+ht = trend == 0 ? up : down
+
+
+buySignal = not na(arrowUp) and trend == 0 and trend[1] == 1
+sellSignal = not na(arrowDown) and trend == 1 and trend[1] == 0
+
+indicators(selected)=>
+    switch selected
+        "MA 1" => ma1
+        "MA 2" => ma2
+        "ATR" => atr
+        "CCI" => cci
+        "RSI 1" => rsi1
+        "RSI 2" => rsi2
+        "BBW" => bbw
+        "ADX" => adx
+        "MFI 1" => mfi1
+        "MFI 2" => mfi2
+        "MOM" => mom
+		
+        
+        
+
+position(data)=>
+    switch data
+        "ABOVE" => location.abovebar
+        => location.belowbar
+
+location(data)=>
+    switch data
+        "ABOVE" => true
+        => false
+
+style(data)=>
+    switch data
+        "ABOVE" => shape.labeldown
+        => shape.labelup
+    
+
+andORLong = input.string(defval = "AND", title = "BUY/LONG CONNECT", options = ["AND","OR"], group = "SETTINGS") 
+andORShort = input.string(defval = "AND", title = "SELL/SHORT CONNECT", options = ["AND","OR"], group = "SETTINGS") 
+
+
+
+buyList = array.new_bool()
+sellList = array.new_bool()
+detect(status,series,di)=>
+    if status
+        if di == "BUY"
+            array.push(buyList,series)
+        else
+            array.push(sellList,series)
+
+
+
+
+s1Group     = "❗️❗️❗️❗️ CONDITION #1 ❗️❗️❗️❗️"
+s1Inline    = "s1i"
+s1Status    = input.bool(defval = false, title = "CONDITION Active", group = s1Group )
+s1Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s1Group)
+s1Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s1Group, inline = s1Inline)
+s1Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s1Group, inline = s1Inline)
+s1Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s1Group, inline = s1Inline)
+s1ValueBool = input.bool(defval = false, title = "VALUE ", group = s1Group, inline = "v1")
+s1EndRight  = input.float(defval = 0. , title = "2️⃣", group = s1Group, inline = "v1")
+s1Series    = operatorReturn(indicators(s1Left),s1Mid,s1ValueBool ? s1EndRight : indicators(s1Right))
+detect(s1Status,s1Series,s1Direction)
+
+
+// CONDITION 2
+s2Group     = "❗️❗️❗️❗️ CONDITION #2 ❗️❗️❗️❗️"
+s2Inline    = "s2i"
+s2Status    = input.bool(defval = false, title = "CONDITION Active", group = s2Group )
+s2Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s2Group)
+s2Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s2Group, inline = s2Inline)
+s2Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s2Group, inline = s2Inline)
+s2Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s2Group, inline = s2Inline)
+s2ValueBool = input.bool(defval = false, title = "VALUE ", group = s2Group, inline = "v2")
+s2EndRight  = input.float(defval = 0. , title = "2️⃣", group = s2Group, inline = "v2")
+s2Series    = operatorReturn(indicators(s2Left),s2Mid,s2ValueBool ? s2EndRight : indicators(s2Right))
+detect(s2Status,s2Series,s2Direction)
+
+
+
+
+s3Group     = "❗️❗️❗️❗️ CONDITION #3 ❗️❗️❗️❗️"
+s3Inline    = "s3i"
+s3Status    = input.bool(defval = false, title = "CONDITION Active", group = s3Group )
+s3Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s3Group)
+s3Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s3Group, inline = s3Inline)
+s3Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s3Group, inline = s3Inline)
+s3Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s3Group, inline = s3Inline)
+s3ValueBool = input.bool(defval = false, title = "VALUE ", group = s3Group, inline = "v3")
+s3EndRight  = input.float(defval = 0. , title = "2️⃣", group = s3Group, inline = "v3")
+s3Series    = operatorReturn(indicators(s3Left),s3Mid,s3ValueBool ? s3EndRight : indicators(s3Right))
+detect(s3Status,s3Series,s3Direction)
+
+
+s4Group     = "❗️❗️❗️❗️ CONDITION #4 ❗️❗️❗️❗️"
+s4Inline    = "s4i"
+s4Status    = input.bool(defval = false, title = "CONDITION Active", group = s4Group )
+s4Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s4Group)
+s4Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s4Group, inline = s4Inline)
+s4Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s4Group, inline = s4Inline)
+s4Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s4Group, inline = s4Inline)
+s4ValueBool = input.bool(defval = false, title = "VALUE ", group = s4Group, inline = "v4")
+s4EndRight  = input.float(defval = 0. , title = "2️⃣", group = s4Group, inline = "v4")
+s4Series    = operatorReturn(indicators(s4Left),s4Mid,s4ValueBool ? s4EndRight : indicators(s4Right))
+detect(s4Status,s4Series,s4Direction)
+
+s5Group     = "❗️❗️❗️❗️ CONDITION #5 ❗️❗️❗️❗️"
+s5Inline    = "s5i"
+s5Status    = input.bool(defval = false, title = "CONDITION Active", group = s5Group )
+s5Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s5Group)
+s5Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s5Group, inline = s5Inline)
+s5Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s5Group, inline = s5Inline)
+s5Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s5Group, inline = s5Inline)
+s5ValueBool = input.bool(defval = false, title = "VALUE ", group = s5Group, inline = "v5")
+s5EndRight  = input.float(defval = 0. , title = "2️⃣", group = s5Group, inline = "v5")
+s5Series    = operatorReturn(indicators(s5Left),s5Mid,s5ValueBool ? s5EndRight : indicators(s5Right))
+detect(s5Status,s5Series,s5Direction)
+
+s6Group     = "❗️❗️❗️❗️ CONDITION #6 ❗️❗️❗️❗️"
+s6Inline    = "s6i"
+s6Status    = input.bool(defval = false, title = "CONDITION Active", group = s6Group )
+s6Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s6Group)
+s6Left      = input.string(defval = "CCI", title = "1️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s6Group, inline = s6Inline)
+s6Mid       = input.string(defval = ">=", title = "", options = [">","<",">=","<=","=","!=","CROSS ABOVE","CROSS BELOW"], group = s6Group, inline = s6Inline)
+s6Right     = input.string(defval = "CCI", title = "2️⃣", options = ["ATR","MA 1","MA 2","RSI 1", "RSI 2", "CCI","BBW", "ADX","MFI 1", "MFI 2","MOM"], group = s6Group, inline = s6Inline)
+s6ValueBool = input.bool(defval = false, title = "VALUE ", group = s6Group, inline = "v6")
+s6EndRight  = input.float(defval = 0. , title = "2️⃣", group = s6Group, inline = "v6")
+s6Series    = operatorReturn(indicators(s6Left),s6Mid,s6ValueBool ? s6EndRight : indicators(s6Right))
+detect(s6Status,s6Series,s6Direction)
+
+s7Group     = "❗️❗️❗️❗️ CONDITION #7 - HalfTrend 1 ❗️❗️❗️❗️"
+s7Inline    = "s7i"
+s7Status    = input.bool(defval = false, title = "CONDITION Active", group = s7Group )
+s7Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s7Group)
+s7Series    = s7Direction == "BUY" ? buySignal : sellSignal
+detect(s7Status,s7Series,s7Direction)
+
+s8Group     = "❗️❗️❗️❗️ CONDITION #8 - HalfTrend 2 ❗️❗️❗️❗️"
+s8Inline    = "s8i"
+s8Status    = input.bool(defval = false, title = "CONDITION Active", group = s8Group )
+s8Direction = input.string(defval = "BUY", title = "Direction",options = ["BUY","SELL"], group = s8Group)
+s8Series    = s8Direction == "BUY" ? buySignal : sellSignal
+detect(s8Status,s8Series,s8Direction)
+
+
+
+// SCANNER
+sembol1 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 1",inline = "S1")
+sembol1_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 1", step=0.1)
+sembol1_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 1", step=0.1)
+sembol1_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 1", step=0.1)
+
+sembol2 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 2",inline = "S2")
+sembol2_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 2", step=0.1)
+sembol2_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 2", step=0.1)
+sembol2_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 2", step=0.1)
+
+sembol3 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 3",inline = "S3")
+sembol3_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 3", step=0.1)
+sembol3_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 3", step=0.1)
+sembol3_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 3", step=0.1)
+
+sembol4 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 4",inline = "S4")
+sembol4_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 4", step=0.1)
+sembol4_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 4", step=0.1)
+sembol4_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 4", step=0.1)
+
+sembol5 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 5",inline = "S5")
+sembol5_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 5", step=0.1)
+sembol5_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 5", step=0.1)
+sembol5_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 5", step=0.1)
+
+sembol6 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 6",inline = "S6")
+sembol6_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 6", step=0.1)
+sembol6_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 6", step=0.1)
+sembol6_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 6", step=0.1)
+
+sembol7 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 7",inline = "S7")
+sembol7_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 7", step=0.1)
+sembol7_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 7", step=0.1)
+sembol7_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 7", step=0.1)
+
+sembol8 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 8",inline = "S8")
+sembol8_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 8", step=0.1)
+sembol8_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 8", step=0.1)
+sembol8_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 8", step=0.1)
+
+sembol9 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 9",inline = "S9")
+sembol9_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 9", step=0.1)
+sembol9_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 9", step=0.1)
+sembol9_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 9", step=0.1)
+
+sembol10 = input.symbol(defval = "", title = "Symbol", group = "SCANNER 10",inline = "S10")
+sembol10_tg1 = input.float(1, title='Target 1 R:R (Multiple Target)', group="SCANNER 10", step=0.1)
+sembol10_tg2 = input.float(2, title='Target 2 R:R (Multiple Target)', group="SCANNER 10", step=0.1)
+sembol10_tg3 = input.float(3, title='Target 3 R:R (Multiple Target)', group="SCANNER 10", step=0.1)
+
+
+//bat dau code stagety
+//thong so dau vao
+
+risk = input.float(2, title="Volume vao lenh", group="Setting stagety", step=0.5)
+ruiromax = input.float(2, title="rui ro % MAX", group="Setting stagety", step=0.1)
+biendotrail2 = input.float(0.01, title="% bien do trail 2 so voi stoploss", group="Setting stagety", step=0.01)
+
+
+typeTP = input.string(title="TakeProfit", defval="Multiple Target", options=["Multiple Target", "TrailStop2"], group="Setting")
+//tinh toan stoploss atr
+//StopLoss
+
+
+atrMultiplierSL = input.int(2, title = "ATR Multiplier", group="Stop Loss")
+//rui ro max toi da %
+tinhartbuy(sembol_adi)=>
+	biendoruiro = close * ruiromax / 100
+	atrBuyround = close - math.min(atr, biendoruiro) * atrMultiplierSL
+	atrBuy = math.round_to_mintick(atrBuyround)
+	atrBuy
+tinhartsell(sembol_adi)=>
+	biendoruiro = close * ruiromax / 100
+	atrSellround = close + math.min(atr, biendoruiro) * atrMultiplierSL
+	atrSell = math.round_to_mintick(atrSellround)
+	atrSell
+
+
+
+
+
+alarmTetikle(sembol_adi, target1, target2, target3)=>
+    [durum_long_entry, giaclose, atrBuy, durum_short_entry, atrSell] = request.security(sembol_adi,timeframe.period,[andORLong == "AND" ? array.every(buyList) : array.includes(buyList,true), close, tinhartbuy(sembol_adi), andORShort == "AND" ? array.every(sellList) : array.includes(sellList,true), tinhartsell(sembol_adi)], lookahead = barmerge.lookahead_on)
+	buytarget1 = str.tostring(math.round_to_mintick(((giaclose-atrBuy)*target1)+giaclose))
+	buytarget2 = str.tostring(math.round_to_mintick(((giaclose-atrBuy)*target2)+giaclose))
+	buytarget3 = str.tostring(math.round_to_mintick(((giaclose-atrBuy)*target3)+giaclose))
+	selltarget1 = str.tostring(math.round_to_mintick(giaclose-((atrSell-giaclose)*target1)))
+	selltarget2 = str.tostring(math.round_to_mintick(giaclose-((atrSell-giaclose)*target2)))
+	selltarget3 = str.tostring(math.round_to_mintick(giaclose-((atrSell-giaclose)*target3)))
+    long_enter_json = 'BUY///' + syminfo.ticker(sembol_adi) + '///' + str.tostring(atrBuy) + '///' + buytarget1 + '///' + buytarget2 + '///' + buytarget3
+    short_enter_json = 'SELL///' + syminfo.ticker(sembol_adi) + '///' + str.tostring(atrSell) + '///' + selltarget1 + '///' + selltarget2 + '///' + selltarget3
+    coinbuy = if durum_long_entry[1] == false and durum_long_entry == true and str.length(sembol_adi) > 1
+        alert(long_enter_json,freq = alert.freq_once_per_bar_close)
+		true
+	else
+		false
+    coinsell = if durum_short_entry[1] == false and durum_short_entry == true and str.length(sembol_adi) > 1
+        alert(short_enter_json,freq = alert.freq_once_per_bar_close)
+		true
+	else
+		false
+	[coinbuy, coinsell, atrBuy, atrSell, buytarget1, selltarget1, giaclose]
+
+
+
+[coinbuy1, coinsell1, atrBuy1, atrSell1, buytarget1, selltarget1, giaclose1] = alarmTetikle(sembol1,sembol1_tg1, sembol1_tg2, sembol1_tg3)
+[coinbuy2, coinsell2, atrBuy2, atrSell2, buytarget2, selltarget2, giaclose2] = alarmTetikle(sembol2,sembol2_tg1, sembol2_tg2, sembol2_tg3)
+[coinbuy3, coinsell3, atrBuy3, atrSell3, buytarget3, selltarget3, giaclose3] = alarmTetikle(sembol3,sembol3_tg1, sembol3_tg2, sembol3_tg3)
+[coinbuy4, coinsell4, atrBuy4, atrSell4, buytarget4, selltarget4, giaclose4] = alarmTetikle(sembol4,sembol4_tg1, sembol4_tg2, sembol4_tg3)
+[coinbuy5, coinsell5, atrBuy5, atrSell5, buytarget5, selltarget5, giaclose5] = alarmTetikle(sembol5,sembol5_tg1, sembol5_tg2, sembol5_tg3)
+[coinbuy6, coinsell6, atrBuy6, atrSell6, buytarget6, selltarget6, giaclose6] = alarmTetikle(sembol6,sembol6_tg1, sembol6_tg2, sembol6_tg3)
+[coinbuy7, coinsell7, atrBuy7, atrSell7, buytarget7, selltarget7, giaclose7] = alarmTetikle(sembol7,sembol7_tg1, sembol7_tg2, sembol7_tg3)
+[coinbuy8, coinsell8, atrBuy8, atrSell8, buytarget8, selltarget8, giaclose8] = alarmTetikle(sembol8,sembol8_tg1, sembol8_tg2, sembol8_tg3)
+[coinbuy9, coinsell9, atrBuy9, atrSell9, buytarget9, selltarget9, giaclose9] = alarmTetikle(sembol9,sembol9_tg1, sembol9_tg2, sembol9_tg3)
+[coinbuy10, coinsell10, atrBuy10, atrSell10, buytarget10, selltarget10, giaclose10] = alarmTetikle(sembol10,sembol10_tg1, sembol10_tg2, sembol10_tg3)
+
+for i = 1 to 10
+    [globals.get("coinbuy" + str.tostring(i)), globals.get("coinsell" + str.tostring(i)), globals.get("atrBuy" + str.tostring(i)), globals.get("atrSell" + str.tostring(i)), globals.get("buytarget" + str.tostring(i)), globals.get("selltarget" + str.tostring(i))] = alarmTetikle(globals.get("sembol" + str.tostring(i)), globals.get("sembol" + str.tostring(i) + "_tg1"), globals.get("sembol" + str.tostring(i) + "_tg2"), globals.get("sembol" + str.tostring(i) + "_tg3"))
+
+
+//tinh he so giao dich win
+// Set global variables
+var coinbuy1 = false
+var coinsell1 = false
+var win = 0
+var atrBuy1 = 0.0
+var atrSell1 = 0.0
+var buytarget1 = 0.0
+var selltarget1 = 0.0
+
+// Check if coinbuy1 is true
+if coinbuy1
+    atrBuy1 := atrBuy1
+    buytarget1 := buytarget1
+
+// Check if coinsell1 is true
+if coinsell1
+    atrSell1 := atrSell1
+    selltarget1 := selltarget1
+
+// Check if close price crosses atrBuy1 while coinbuy1 is true
+if close > atrBuy1 and coinbuy1
+    win := 0
+
+// Check if close price crosses buytarget1
+if close > buytarget1
+    win := win + 1
+// Assigning Buy /Sell signals to each stock identified in the given time frame
+
+
+//Assiging BUY Label to each stock
+buy_label1='---BUY SIGNAL---\n'
+buy_label1:= coinbuy1?buy_label1+str.tostring(sembol1)+'\n': buy_label1
+buy_label1:= coinbuy2?buy_label1+str.tostring(sembol2)+'\n': buy_label1
+buy_label1:= coinbuy3?buy_label1+str.tostring(sembol3)+'\n': buy_label1
+buy_label1:= coinbuy4?buy_label1+str.tostring(sembol4)+'\n': buy_label1
+buy_label1:= coinbuy5?buy_label1+str.tostring(sembol5)+'\n': buy_label1
+buy_label1:= coinbuy6?buy_label1+str.tostring(sembol6)+'\n': buy_label1
+buy_label1:= coinbuy7?buy_label1+str.tostring(sembol7)+'\n': buy_label1
+buy_label1:= coinbuy8?buy_label1+str.tostring(sembol8)+'\n': buy_label1
+buy_label1:= coinbuy9?buy_label1+str.tostring(sembol9)+'\n': buy_label1
+buy_label1:= coinbuy10?buy_label1+str.tostring(sembol10)+'\n': buy_label1
+
+buy_label1 := '---BUY SIGNAL---\n' + array.join(array.new_string(10, (i) => globals.get("coinbuy" + str.tostring(i)) ? str.tostring(globals.get("sembol" + str.tostring(i))) + '\n' : ""), "")
+// Plotting each Buy/Sell signal in teh label
+
+lab_buy=label.new(bar_index+10, close, buy_label1, color=color.new(color.lime, 70), textcolor = color.white, style=label.style_label_up, yloc=yloc.price, textalign = text.align_left)
+
+//Deleting Buy/Sell signal of the previous candle to remove clutter from the screen
+label.delete(lab_buy[1])
+//Assigining SELL signal to each stock if SELL siganl comes in for teh same
+sell_label1='---SELL SIGNAL---\n'
+sell_label1:= coinsell1?sell_label1+str.tostring(sembol1)+'\n': sell_label1
+sell_label1:= coinsell2?sell_label1+str.tostring(sembol2)+'\n': sell_label1
+sell_label1:= coinsell3?sell_label1+str.tostring(sembol3)+'\n': sell_label1
+sell_label1:= coinsell4?sell_label1+str.tostring(sembol4)+'\n': sell_label1
+sell_label1:= coinsell5?sell_label1+str.tostring(sembol5)+'\n': sell_label1
+sell_label1:= coinsell6?sell_label1+str.tostring(sembol6)+'\n': sell_label1
+sell_label1:= coinsell7?sell_label1+str.tostring(sembol7)+'\n': sell_label1
+sell_label1:= coinsell8?sell_label1+str.tostring(sembol8)+'\n': sell_label1
+sell_label1:= coinsell9?sell_label1+str.tostring(sembol9)+'\n': sell_label1
+sell_label1:= coinsell10?sell_label1+str.tostring(sembol10)+'\n': sell_label1
+
+sell_label1 := '---SELL SIGNAL---\n' + array.join(array.new_string(10, (i) => globals.get("coinsell" + str.tostring(i)) ? str.tostring(globals.get("sembol" + str.tostring(i))) + '\n' : ""), "")
+//plotting SELL signal in the label for stcks if it meets the SELL criteria set above
+lab_sell=label.new(bar_index+15, close, sell_label1, color=color.new(color.red, 70), textcolor = color.white, style=label.style_label_down, yloc=yloc.price, textalign = text.align_left)
+//Deleting signal of previos candle to remove too many of them showing on screen
+label.delete(lab_sell[1])
